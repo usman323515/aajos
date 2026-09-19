@@ -1,1 +1,126 @@
+// A,A JOS COMM — database schema
+// Run `npm run db:migrate:dev` locally after setting DATABASE_URL,
+// or `npm run db:migrate` in production/CI.
 
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ProductCategory {
+  SMARTPHONE
+  POWER_BANK
+}
+
+enum AdminRole {
+  OWNER
+  STAFF
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         AdminRole @default(STAFF)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+}
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  brand       Brand    @relation(fields: [brandId], references: [id])
+  brandId     String
+  category    ProductCategory @default(SMARTPHONE)
+  model       String
+  shortDesc   String
+  fullDesc    String   @db.Text
+  ram         String?
+  storage     String?
+  color       String?
+  specs       String?  @db.Text // free-form key specification lines, one per line
+  available   Boolean  @default(true)
+  featured    Boolean  @default(false)
+  easyBuy     Boolean  @default(false)
+  visible     Boolean  @default(true)
+  images      ProductImage[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([brandId])
+  @@index([category])
+  @@index([featured])
+  @@index([visible])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  url       String
+  alt       String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model GalleryImage {
+  id        String   @id @default(cuid())
+  url       String
+  caption   String?
+  category  String? // e.g. "Shop", "Abdul Jos", "Phones", "Business activities"
+  position  Int      @default(0)
+  visible   Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// Single-row table holding all editable business information.
+// The admin settings page reads/writes this one record (id = "main").
+model BusinessSettings {
+  id                String   @id @default("main")
+
+  businessName      String   @default("A,A JOS COMM")
+  ceoName           String   @default("Abdurrahman Muhammad Al Amin")
+  ceoPublicName      String   @default("Abdul Jos")
+
+  phone             String   @default("07036854747")
+  whatsapp          String   @default("07036854747")
+
+  addressLine1      String   @default("A,A JOS COMM Shop")
+  addressLine2      String   @default("Opposite Sangami")
+  city              String   @default("Pantami, Gombe")
+  country           String   @default("Nigeria")
+  mapUrl            String?
+
+  openingTime       String   @default("8:00 AM")
+  closingTime       String   @default("8:00 PM")
+
+  tiktokUrl         String?  @default("https://www.tiktok.com/@abduljos48?_r=1&_t=ZS-99rq6Hhgbqf")
+  facebookUrl       String?  @default("https://www.facebook.com/abdul.jos.37")
+  shopVideoUrl      String?  @default("https://youtube.com/shorts/jAYhDnpf-ms?si=_CI4i9aB3kmoX0J7")
+
+  moniepointAccountNumber String? @default("8246451928")
+  moniepointAccountName   String? @default("Abdul Jos Enterprises")
+  opayAccountNumber       String? @default("7036854747")
+  opayAccountName         String? @default("Abdurrahman Muhammad Al Amin")
+
+  easyBuyDescription String? @db.Text
+
+  updatedAt         DateTime @updatedAt
+}
