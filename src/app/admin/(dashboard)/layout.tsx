@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getCurrentAdmin } from "@/lib/auth";
+import { isDatabaseConfigured } from "@/lib/prisma";
 import LogoutButton from "@/components/admin/LogoutButton";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -46,7 +47,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <div className="mb-6 flex justify-end md:hidden">
             <LogoutButton />
           </div>
-          {children}
+          {isDatabaseConfigured() ? (
+            children
+          ) : (
+            <div className="border border-dashed border-line p-10 text-center">
+              <p className="font-display text-lg">Database not connected</p>
+              <p className="mt-2 text-sm text-ink/60">
+                Products, gallery and settings can be managed once a database is configured for this site.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

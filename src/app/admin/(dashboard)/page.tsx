@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { requirePrisma } from "@/lib/prisma";
 
 export default async function AdminOverviewPage() {
+  const db = requirePrisma();
   const [total, available, featured, easyBuy, hidden, galleryCount] = await Promise.all([
-    prisma.product.count(),
-    prisma.product.count({ where: { available: true } }),
-    prisma.product.count({ where: { featured: true } }),
-    prisma.product.count({ where: { easyBuy: true } }),
-    prisma.product.count({ where: { visible: false } }),
-    prisma.galleryImage.count(),
+    db.product.count(),
+    db.product.count({ where: { available: true } }),
+    db.product.count({ where: { featured: true } }),
+    db.product.count({ where: { easyBuy: true } }),
+    db.product.count({ where: { visible: false } }),
+    db.galleryImage.count(),
   ]);
 
   const stats = [
