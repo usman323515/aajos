@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { withDb } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import SectionHeading from "@/components/SectionHeading";
 import ProductCard from "@/components/ProductCard";
@@ -16,13 +16,17 @@ import {
 export default async function HomePage() {
   const settings = await getSettings();
   const [featured, brands] = await Promise.all([
-    prisma.product.findMany({
-      where: { visible: true, featured: true },
-      include: { brand: true, images: { orderBy: { position: "asc" } } },
-      orderBy: { createdAt: "desc" },
-      take: 8,
-    }),
-    prisma.brand.findMany({ orderBy: { name: "asc" } }),
+    withDb(
+      (db) =>
+        db.product.findMany({
+          where: { visible: true, featured: true },
+          include: { brand: true, images: { orderBy: { position: "asc" } } },
+          orderBy: { createdAt: "desc" },
+          take: 8,
+        }),
+      []
+    ),
+    withDb((db) => db.brand.findMany({ orderBy: { name: "asc" } }), []),
   ]);
 
   const whatsappGeneral = buildWhatsAppLink(settings.whatsapp, generalInquiryMessage(settings.ceoPublicName));
