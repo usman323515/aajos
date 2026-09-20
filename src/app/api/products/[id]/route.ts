@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { getCurrentAdmin } from "@/lib/auth";
+import { dbUnavailable } from "@/lib/api";
 import { productSchema } from "@/lib/validation";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const product = await prisma.product.findUnique({
+  const db = getPrisma();
+  if (!db) return dbUnavailable();
+
+  const product = await db.product.findUnique({
     where: { id: params.id },
     include: { brand: true, images: { orderBy: { position: "asc" } } },
   });
@@ -16,16 +22,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const admin = await getCurrentAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const db = getPrisma();
+  if (!db) return dbUnavailable();
+
   const body = await req.json().catch(() => null);
   const parsed = productSchema.partial().safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const existing = await prisma.product.findUnique({ where: { id: params.id } });
+  const existing = await db.product.findUnique({ where: { id: params.id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const product = await prisma.product.update({
+  const product = await db.product.update({
     where: { id: params.id },
     data: parsed.data,
     include: { brand: true, images: true },
@@ -33,8 +42,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   // Optional: replace image set if a fresh list of URLs is supplied.
   if (Array.isArray(body?.imageUrls)) {
-    await prisma.productImage.deleteMany({ where: { productId: params.id } });
-    await prisma.productImage.createMany({
+    await db.productImage.deleteMany({ where: { productId: params.id } });
+    await db.productImage.createMany({
       data: (body.imageUrls as string[]).map((url, index) => ({
         productId: params.id,
         url,
@@ -43,7 +52,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     });
   }
 
-  const refreshed = await prisma.product.findUnique({
+  const refreshed = await db.product.findUnique({
     where: { id: params.id },
     include: { brand: true, images: { orderBy: { position: "asc" } } },
   });
@@ -55,9 +64,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const admin = await getCurrentAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const existing = await prisma.product.findUnique({ where: { id: params.id } });
+  const db = getPrisma();
+  if (!db) return dbUnavailable();
+
+  const existing = await db.product.findUnique({ where: { id: params.id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  await prisma.product.delete({ where: { id: params.id } });
+  await db.product.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }
