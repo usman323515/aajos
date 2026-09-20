@@ -1,8 +1,9 @@
-import { prisma } from "@/lib/prisma";
+import { requirePrisma } from "@/lib/prisma";
 import GalleryManager from "@/components/admin/GalleryManager";
 
 export default async function AdminGalleryPage() {
-  const images = await prisma.galleryImage.findMany({ orderBy: { createdAt: "desc" } });
+  const db = requirePrisma();
+  const images = await db.galleryImage.findMany({ orderBy: { createdAt: "desc" } });
 
   return (
     <div>
