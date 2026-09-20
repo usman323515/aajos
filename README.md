@@ -81,6 +81,21 @@ openssl rand -base64 48
 
 ---
 
+## Running without a database
+
+`DATABASE_URL` is optional. Without it the app still builds and starts, and
+stays online:
+
+- Public pages (home, phones, EasyBuy, About, Gallery, Contact) render with the
+  business details from the schema defaults; the catalogue is empty and the
+  gallery shows the starter photos. Official payment accounts are hidden.
+- Database-backed API routes and admin sign-in respond with `503` and a JSON
+  message instead of crashing.
+- Pages are rendered per request, so as soon as `DATABASE_URL` is set (and the
+  migration has been run) the live data appears — no rebuild needed.
+
+---
+
 ## 4. Deploying to Netlify
 
 1. **Push this project to a GitHub/GitLab/Bitbucket repository.**
