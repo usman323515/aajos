@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { getCurrentAdmin } from "@/lib/auth";
+import { dbUnavailable } from "@/lib/api";
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const admin = await getCurrentAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const db = getPrisma();
+  if (!db) return dbUnavailable();
+
   const body = await req.json().catch(() => null);
-  const image = await prisma.galleryImage.update({
+  const image = await db.galleryImage.update({
     where: { id: params.id },
     data: {
       caption: body?.caption ?? undefined,
@@ -24,6 +28,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   const admin = await getCurrentAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  await prisma.galleryImage.delete({ where: { id: params.id } });
+  const db = getPrisma();
+  if (!db) return dbUnavailable();
+
+  await db.galleryImage.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }
