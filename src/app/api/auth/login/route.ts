@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
+import { dbUnavailable } from "@/lib/api";
 import { createSessionToken, sessionCookieOptions, verifyPassword } from "@/lib/auth";
 import { loginSchema } from "@/lib/validation";
 
@@ -11,9 +12,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Enter a valid email and password." }, { status: 400 });
   }
 
+  const db = getPrisma();
+  if (!db) return dbUnavailable();
+
   const { email, password } = parsed.data;
 
-  const user = await prisma.adminUser.findUnique({ where: { email } });
+  const user = await db.adminUser.findUnique({ where: { email } });
   if (!user) {
     // Same message as a wrong password — never reveal whether the email exists.
     return NextResponse.json({ error: "Incorrect email or password." }, { status: 401 });
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
     role: user.role,
   });
 
-  await prisma.adminUser.update({
+  await db.adminUser.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
   });
