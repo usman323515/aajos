@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { getCurrentAdmin } from "@/lib/auth";
+import { dbUnavailable } from "@/lib/api";
 import { productSchema } from "@/lib/validation";
 import { buildProductSlug } from "@/lib/slug";
 import type { Prisma, ProductCategory } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/products?search=&brand=&category=&availability=&easyBuy=
 // Public endpoint backing the phone showroom, search box, and filters.
 export async function GET(req: NextRequest) {
+  const db = getPrisma();
+  if (!db) return dbUnavailable({ products: [] });
+
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search")?.trim();
   const brand = searchParams.get("brand");
@@ -33,7 +39,7 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  const products = await prisma.product.findMany({
+  const products = await db.product.findMany({
     where,
     include: { brand: true, images: { orderBy: { position: "asc" } } },
     orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
@@ -47,13 +53,16 @@ export async function POST(req: NextRequest) {
   const admin = await getCurrentAdmin();
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const db = getPrisma();
+  if (!db) return dbUnavailable();
+
   const body = await req.json().catch(() => null);
   const parsed = productSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const brand = await prisma.brand.findUnique({ where: { id: parsed.data.brandId } });
+  const brand = await db.brand.findUnique({ where: { id: parsed.data.brandId } });
   if (!brand) {
     return NextResponse.json({ error: "Selected brand does not exist." }, { status: 400 });
   }
@@ -61,14 +70,14 @@ export async function POST(req: NextRequest) {
   const baseSlug = buildProductSlug(brand.name, parsed.data.model);
   let slug = baseSlug;
   let suffix = 1;
-  while (await prisma.product.findUnique({ where: { slug } })) {
+  while (await db.product.findUnique({ where: { slug } })) {
     suffix += 1;
     slug = `${baseSlug}-${suffix}`;
   }
 
   const imageUrls: string[] = Array.isArray(body?.imageUrls) ? body.imageUrls : [];
 
-  const product = await prisma.product.create({
+  const product = await db.product.create({
     data: {
       ...parsed.data,
       slug,
