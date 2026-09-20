@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
-import { prisma } from "@/lib/prisma";
+import { withDb } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://aajoscomm.netlify.app";
@@ -9,10 +11,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date(),
   }));
 
-  const products = await prisma.product.findMany({
-    where: { visible: true },
-    select: { slug: true, updatedAt: true },
-  });
+  const products = await withDb(
+    (db) =>
+      db.product.findMany({
+        where: { visible: true },
+        select: { slug: true, updatedAt: true },
+      }),
+    []
+  );
 
   const productRoutes = products.map((p) => ({
     url: `${siteUrl}/phones/${p.slug}`,
