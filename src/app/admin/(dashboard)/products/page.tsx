@@ -1,10 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
-import { prisma } from "@/lib/prisma";
+import { requirePrisma } from "@/lib/prisma";
 import ProductRowActions from "@/components/admin/ProductRowActions";
 
 export default async function AdminProductsPage() {
-  const products = await prisma.product.findMany({
+  const products = await requirePrisma().product.findMany({
     include: { brand: true, images: { orderBy: { position: "asc" }, take: 1 } },
     orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
   });
