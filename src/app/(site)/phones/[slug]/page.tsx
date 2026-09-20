@@ -2,12 +2,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { buildWhatsAppLink, easyBuyInquiryMessage, priceInquiryMessage } from "@/lib/whatsapp";
 
 async function getProduct(slug: string) {
-  return prisma.product.findFirst({
+  const db = getPrisma();
+  // No database means no catalogue, so there is nothing to show. A real query
+  // failure is left to surface as an error (5xx) rather than a misleading 404.
+  if (!db) return null;
+
+  return db.product.findFirst({
     where: { slug, visible: true },
     include: { brand: true, images: { orderBy: { position: "asc" } } },
   });
