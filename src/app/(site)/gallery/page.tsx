@@ -1,6 +1,6 @@
 import Image from "next/image";
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
+import { withDb } from "@/lib/prisma";
 import SectionHeading from "@/components/SectionHeading";
 
 export const metadata: Metadata = {
@@ -17,10 +17,14 @@ const STARTER_IMAGES = [
 ];
 
 export default async function GalleryPage() {
-  const uploaded = await prisma.galleryImage.findMany({
-    where: { visible: true },
-    orderBy: { position: "asc" },
-  });
+  const uploaded = await withDb(
+    (db) =>
+      db.galleryImage.findMany({
+        where: { visible: true },
+        orderBy: { position: "asc" },
+      }),
+    []
+  );
 
   const images =
     uploaded.length > 0
