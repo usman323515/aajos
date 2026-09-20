@@ -1,8 +1,8 @@
-import { prisma } from "@/lib/prisma";
+import { requirePrisma } from "@/lib/prisma";
 import ProductForm from "@/components/admin/ProductForm";
 
 export default async function NewProductPage() {
-  const brands = await prisma.brand.findMany({ orderBy: { name: "asc" } });
+  const brands = await requirePrisma().brand.findMany({ orderBy: { name: "asc" } });
 
   return (
     <div>
