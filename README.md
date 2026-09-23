@@ -135,6 +135,57 @@ stays online:
 9. **Configure your domain** under Netlify → Domain management, once you're
    ready to move off the default `*.netlify.app` address.
 
+---
+
+## 4b. Deploying to Render + Supabase
+
+This project also deploys cleanly to **Render** (persistent Node server) with
+**Supabase** as the Postgres provider. Nothing else about the architecture
+changes — same Prisma schema, same Cloudinary uploads, same routes.
+
+1. **Create a Supabase project** at supabase.com. In **Project Settings →
+   Database → Connection string**, copy both:
+   - the **pooled** connection (port `6543`, "Transaction" mode) → this is
+     your `DATABASE_URL`. Append `?pgbouncer=true&connection_limit=1`.
+   - the **direct** connection (port `5432`) → this is your `DIRECT_URL`
+     (Prisma needs a non-pooled connection to run migrations).
+   - See `.env.example` for the exact shape of both.
+2. **Push this project to GitHub/GitLab.**
+3. **In Render: New → Blueprint**, point it at your repo. Render will detect
+   `render.yaml` and create the web service automatically.
+4. **Set the secret environment variables** Render leaves blank
+   (`DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SITE_URL`,
+   `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_PHONE_NUMBER`,
+   `CLOUDINARY_*`) — Render dashboard → your service → Environment.
+   `AUTH_SECRET` is generated for you by the blueprint.
+5. **Run the migration against Supabase** (from your own machine, with
+   `DATABASE_URL`/`DIRECT_URL` pointed at Supabase):
+   ```bash
+   npx prisma migrate deploy
+   npm run db:seed
+   npm run admin:create -- "Abdul Jos" "admin@aajoscomm.com" "a-strong-password-here"
+   ```
+   > **Already have data in this Supabase database?** (e.g. tables were
+   > created earlier with `prisma db push`, or you're migrating an existing
+   > production database.) Do **not** run `migrate deploy` blind — it will
+   > try to `CREATE TABLE` on tables that already exist and fail (which is
+   > safe — it won't drop anything), but the proper fix is to tell Prisma
+   > those tables are already up to date first:
+   > ```bash
+   > npx prisma migrate resolve --applied 20260924000000_init
+   > ```
+   > Then future `prisma migrate dev` runs will generate clean diffs against
+   > this baseline instead of trying to recreate existing tables.
+6. **Trigger a deploy** in Render (automatic on push, or "Manual Deploy").
+7. **Verify** the same checklist as step 8 in the Netlify section above.
+
+Render can also run migrations automatically on every deploy if you'd rather
+not run them by hand: set the service's build command to
+`npm run render-build` instead of the default (it runs `prisma migrate
+deploy` before `next build`). Left as opt-in here since auto-running
+migrations against production on every push is a deliberate choice, not a
+default you want by accident.
+
 ### Why Cloudinary for images?
 
 Netlify's deployed functions run on a read-only, ephemeral filesystem, so
