@@ -51,7 +51,7 @@ editable from **Admin → Settings → Shop video URL**.
 **To add more real photos** (more shop photos, more of Abdul Jos, product
 photos), use **Admin → Gallery** to upload them, or **Admin → Products** when
 adding a phone. You do not need to touch the file system — uploads go
-straight to Cloudinary (see §5).
+straight to Supabase Storage (see §5).
 
 `public/images/og/cover.jpg` is currently a copy of the shop photo as a
 placeholder social-sharing image. Replace it with a proper 1200×630 crop
@@ -64,7 +64,7 @@ when you have one ready.
 ```bash
 npm install
 cp .env.example .env
-# edit .env with your real DATABASE_URL, AUTH_SECRET, and Cloudinary keys
+# edit .env with your real DATABASE_URL, AUTH_SECRET, and Supabase keys
 
 npx prisma migrate dev --name init
 npm run db:seed                 # seeds the 12 phone brands + default settings row
@@ -112,7 +112,9 @@ stays online:
    - `AUTH_SESSION_HOURS` (optional, defaults to 12)
    - `NEXT_PUBLIC_SITE_URL` (your Netlify URL, e.g. `https://aajoscomm.netlify.app`)
    - `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_PHONE_NUMBER`
-   - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+   - `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (and `SUPABASE_STORAGE_BUCKET` if
+     you didn't use the default `aajoscomm-uploads` bucket name) — server-side
+     only, never prefix these with `NEXT_PUBLIC_`
 5. **Run the database migration against your production database** (from
    your own machine, with `DATABASE_URL` pointed at production):
    ```bash
@@ -140,8 +142,9 @@ stays online:
 ## 4b. Deploying to Render + Supabase
 
 This project also deploys cleanly to **Render** (persistent Node server) with
-**Supabase** as the Postgres provider. Nothing else about the architecture
-changes — same Prisma schema, same Cloudinary uploads, same routes.
+**Supabase** as the Postgres provider — and, per §5, Supabase Storage for
+uploads. Nothing else about the architecture changes — same Prisma schema,
+same routes.
 
 1. **Create a Supabase project** at supabase.com. In **Project Settings →
    Database → Connection string**, copy both:
@@ -156,8 +159,8 @@ changes — same Prisma schema, same Cloudinary uploads, same routes.
 4. **Set the secret environment variables** Render leaves blank
    (`DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SITE_URL`,
    `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_PHONE_NUMBER`,
-   `CLOUDINARY_*`) — Render dashboard → your service → Environment.
-   `AUTH_SECRET` is generated for you by the blueprint.
+   `SUPABASE_URL`, `SUPABASE_SECRET_KEY`) — Render dashboard → your service →
+   Environment. `AUTH_SECRET` is generated for you by the blueprint.
 5. **Run the migration against Supabase** (from your own machine, with
    `DATABASE_URL`/`DIRECT_URL` pointed at Supabase):
    ```bash
@@ -186,15 +189,20 @@ deploy` before `next build`). Left as opt-in here since auto-running
 migrations against production on every push is a deliberate choice, not a
 default you want by accident.
 
-### Why Cloudinary for images?
+### Why Supabase Storage for images?
 
 Netlify's deployed functions run on a read-only, ephemeral filesystem, so
 files uploaded through `/admin` can't be saved into `/public` at runtime.
-This project uploads product and gallery photos to Cloudinary instead and
-stores the resulting HTTPS URL in the database. The free tier is more than
-enough for a shop catalogue. If you'd rather use S3 or Supabase Storage,
-everything routes through the single `uploadImage()` function in
-`src/lib/upload.ts` — swap its contents and nothing else needs to change.
+This project uploads product and gallery photos to a public Supabase
+Storage bucket instead and stores the resulting HTTPS URL in the database.
+The server talks to Supabase using the `SUPABASE_SECRET_KEY` service-role
+key, which is never sent to the browser — uploads go through the
+`POST /api/upload` route, which runs only on the server (`runtime =
+"nodejs"`) and requires an authenticated admin session.
+
+If you'd rather use S3 or another provider, everything routes through the
+single `uploadImage()` function in `src/lib/upload.ts` — swap its contents
+and nothing else needs to change.
 
 ---
 
@@ -235,8 +243,9 @@ prisma/schema.prisma        Database schema (Products, Brands, GalleryImage,
 prisma/seed.ts               Seeds brand list + default settings (no fake products)
 scripts/create-admin.ts      CLI to create/update an admin user
 src/lib/                     prisma client, auth (JWT sessions), whatsapp
-                             link builder, Cloudinary upload adapter, zod
-                             validation schemas, settings helper
+                             link builder, Supabase admin client + storage
+                             upload adapter, zod validation schemas,
+                             settings helper
 src/middleware.ts            Protects all /admin routes
 src/app/(site)/              Public website (home, phones, easybuy, about,
                              gallery, contact) — shares Navbar/Footer/mobile
