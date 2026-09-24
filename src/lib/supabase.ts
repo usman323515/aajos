@@ -1,101 +1,41 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Supabase JS client, for Storage/Auth/Realtime features beyond what Prisma
- * covers for the database itself.
+ * Server-only Supabase client, authenticated with the SECRET (service role)
+ * key. This module must never be imported from a Client Component, a
+ * browser bundle, or anything under `"use client"` — SUPABASE_SECRET_KEY
+ * bypasses Row Level Security and must stay on the server.
  *
- * Two entry points, same "optional at runtime" pattern as prisma.ts:
- *
- * - `getSupabaseBrowserClient()` — anon key only. Safe to import from
- *   client components; respects Row Level Security.
- * - `getSupabaseAdminClient()`   — service_role key. Server-only
- *   (API routes, server actions). Bypasses RLS — never import this
- *   from a client component or expose its result to the browser.
+ * Current callers: src/lib/upload.ts (storage) and
+ * src/app/api/auth/login/route.ts (AdminUser lookup). Both only run inside
+ * API routes with `export const runtime = "nodejs"`, which is the only
+ * place this should be imported from.
  */
 
-const globalForSupabase = globalThis as unknown as {
-  supabaseBrowser?: SupabaseClient;
-  supabaseAdmin?: SupabaseClient;
-  supabaseWarningShown?: boolean;
-};
+let cached: SupabaseClient | null = null;
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
-  );
+  return Boolean(process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_SECRET_KEY?.trim());
 }
 
-export function isSupabaseAdminConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
-      process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-  );
-}
+export function getSupabaseAdmin(): SupabaseClient {
+  if (cached) return cached;
 
-/**
- * Browser-safe client. Uses the anon key, so it only sees what your
- * Row Level Security policies allow. Fine to call from client components.
- */
-export function getSupabaseBrowserClient(): SupabaseClient | null {
-  if (!isSupabaseConfigured()) {
-    if (!globalForSupabase.supabaseWarningShown) {
-      globalForSupabase.supabaseWarningShown = true;
-      console.warn(
-        "[supabase] NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY not set. Supabase-backed features are disabled."
-      );
-    }
-    return null;
-  }
+  const url = process.env.SUPABASE_URL;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
 
-  if (!globalForSupabase.supabaseBrowser) {
-    globalForSupabase.supabaseBrowser = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-  }
-  return globalForSupabase.supabaseBrowser;
-}
-
-/**
- * Server-only admin client. Uses the service_role key, which bypasses RLS.
- * NEVER import this file's admin client into a "use client" component, and
- * never send its query results straight to the browser without checking
- * the caller is authorized — it can read/write anything in the project.
- */
-export function getSupabaseAdminClient(): SupabaseClient | null {
-  if (typeof window !== "undefined") {
+  if (!url || !secretKey) {
     throw new Error(
-      "getSupabaseAdminClient() was called in the browser. The service_role key must never reach the client."
+      "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SECRET_KEY."
     );
   }
 
-  if (!isSupabaseAdminConfigured()) {
-    if (!globalForSupabase.supabaseWarningShown) {
-      globalForSupabase.supabaseWarningShown = true;
-      console.warn(
-        "[supabase] NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set. Supabase admin features are disabled."
-      );
-    }
-    return null;
-  }
+  cached = createClient(url, secretKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
-  if (!globalForSupabase.supabaseAdmin) {
-    globalForSupabase.supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-  }
-  return globalForSupabase.supabaseAdmin;
+  return cached;
 }
 
-export function requireSupabaseAdmin(): SupabaseClient {
-  const client = getSupabaseAdminClient();
-  if (!client) {
-    throw new Error(
-      "Supabase admin client is not configured. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    );
-  }
-  return client;
-}
+/** Bucket that holds all application uploads (products, gallery, misc). */
+export const UPLOAD_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "aajoscomm-uploads";
